@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Segundo Cerebro V3.3: Productividad Total</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+
+    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIlNlZ3VuZG8gQ2VyZWJybyBWMy4zIChQV0EgT2ZmbGluZSkiLAogICJzaG9ydF9uYW1lIjogIjJkb0NlcmVicm8iLAogICJkZXNjcmlwdGlvbiI6ICJUdSBhcGxpY2FjacOzbiBkZSBwcm9kdWN0aXZpZGFkIHBhcmEgbm90YXMsIHRhcmVhcywgbWV0YXMgeSBlbmZvcXVlLiIsCiAgInN0YXJ0X3VybCI6ICIuLyIsCiAgImRpc3BsYXkiOiAic3RhbmRhbG9uZSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiI2VlZjJmNyIsCiAgInRoZW1lX2NvbG9yIjogIiM2MzY2ZjEiLAogICJpY29ucyI6IFsKICAgIHsKICAgICAgInNyYyI6ICJodHRwczovL3BsYWNlaG9sZC5jby8xOTJ4MTkyLzYzNjZmMS9GRkZGRkY/dGV4dD1TQyZmb250PWludGVyIiwKICAgICAgInNpemVzIjogIjE5MngxOTIiLAogICAgICAidHlwZSI6ICJpbWFnZS9wbmciLAogICAgICAicHVycG9zZSI6ICJhbnkgbWFza2FibGUiCiAgICB9LAogICAgewogICAgICAic3JjIjogImh0dHBzOi8vcGxhY2Vob2xkLmNvLzUxMngxMTIvNjM2NmYxL0ZGRkZGRj90ZXh0PVNDJmZvbnQ9aW50ZXIiLAogICAgICAic2l6ZXMiOiAiNTEyeDUxMiIsCiAgICAgICJ0eXBlIjogImltYWdlL3BuZyIsCiAgICAgICJwdXJwb3NlIjogImFueSBtYXNrYWJsZSIKICAgIH0KICBdCn0K">
+    <meta name="theme-color" content="#6366f1">
+    <link rel="apple-touch-icon" href="https://placehold.co/192x192/6366f1/FFFFFF?text=SC&font=inter">
+
+
+    <script type="module">
+        // Firebase Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, collection, addDoc, query, onSnapshot, doc, deleteDoc, updateDoc, 
+            serverTimestamp, setLogLevel, where, enableIndexedDbPersistence
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        console.log("Script Iniciado - Segundo Cerebro V3.3 (PWA - SW Fix)");
+
+        // Firebase Config
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "TU_API_KEY_AQUI", authDomain: "TU_AUTH_DOMAIN_AQUI", projectId: "TU_PROJECT_ID_AQUI",
+            storageBucket: "TU_STORAGE_BUCKET_AQUI", messagingSenderId: "TU_MESSAGING_SENDER_ID_AQUI", appId: "TU_APP_ID_AQUI"
+        };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'segundo-cerebro-productividad-total';
+
+        // Firebase Init
+        let app, db, auth;
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            setLogLevel('debug'); 
+            console.log("Firebase SDK inicializado correctamente.");
+        } catch (error) {
+            console.error("Error CRÍTICO inicializando Firebase SDK:", error);
+            const criticalErrorModal = () => {
+                const modalTitleEl = document.getElementById('modalTitleEl');
+                const modalMessageEl = document.getElementById('modalMessageEl');
+                const modalEl = document.getElementById('modalEl');
+                if (modalTitleEl && modalMessageEl && modalEl) {
+                     modalTitleEl.textContent = "Error Crítico de Firebase";
+                     modalMessageEl.textContent = "No se pudo inicializar la aplicación. Revisa la configuración de Firebase o tu conexión a internet. La app podría no funcionar.";
+                     modalEl.classList.remove('hidden');
+                } else {
+                    alert("Error CRÍTICO: No se pudo inicializar la aplicación. Revisa la configuración de Firebase. La app podría no funcionar.");
+                }
+            };
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', criticalErrorModal);
+            } else {
+                criticalErrorModal();
+            }
+        }
+        
+        // Habilitar persistencia offline
+        async function initializeOfflinePersistence() {
+            if (!db) {
+                console.error("Firestore DB no está disponible para habilitar persistencia.");
+                return false; 
+            }
+            try {
+                await enableIndexedDbPersistence(db); 
+                console.log("Persistencia offline de Firestore habilitada exitosamente.");
+                return true; 
+            } catch (err) {
+                if (err.code == 'failed-precondition') {
+                    console.warn("Persistencia offline de Firestore falló (failed-precondition): Múltiples pestañas abiertas pueden causar esto. La app funcionará, pero los datos podrían no estar disponibles offline o no sincronizarse entre pestañas offline.");
+                } else if (err.code == 'unimplemented') {
+                    console.warn("Persistencia offline de Firestore no soportada en este navegador/entorno. La app funcionará online solamente.");
+                } else {
+                    console.error("Error habilitando persistencia offline de Firestore:", err);
+                }
+                return false; 
+            }
+        }
+
+
+        let userId = null;
+        let notesCollectionRef, tasksCollectionRef, goalsCollectionRef;
+        let allNotes = [], allTasks = [], allGoals = [];
+        let currentNoteFilter = 'Todas', currentTaskFilter = 'Todas';
+        let unsubscribeNotes, unsubscribeTasks, unsubscribeGoals;
+
+        const authStatusEl = document.getElementById('authStatusEl');
+        const loadingIndicatorEl = document.getElementById('loadingIndicatorEl');
+        const userIdDisplayEl = document.getElementById('userIdDisplayEl');
+        const motivationalQuoteEl = document.getElementById('motivationalQuoteEl');
+
+        const tabs = document.querySelectorAll('.tab-btn');
+        const sections = {
+            notas: document.getElementById('notasSectionContainer'),
+            tareas: document.getElementById('tareasSectionContainer'),
+            metas: document.getElementById('metasSectionContainer'),
+            pomodoro: document.getElementById('pomodoroSection'),
+            recursos: document.getElementById('recursosSectionContainer'),
+        };
+
+        const noteForm = document.getElementById('noteForm');
+        const noteTitleInput = document.getElementById('noteTitle');
+        const noteContentInput = document.getElementById('noteContent');
+        const noteCategoryInput = document.getElementById('noteCategory');
+        
+        const taskForm = document.getElementById('taskForm');
+        const taskDescriptionInput = document.getElementById('taskDescription');
+        const taskCategoryInput = document.getElementById('taskCategory');
+        const taskDueDateInput = document.getElementById('taskDueDate');
+        const taskPriorityInput = document.getElementById('taskPriority');
+        
+        const goalForm = document.getElementById('goalForm');
+        const goalDescriptionInput = document.getElementById('goalDescription');
+        const goalTargetDateInput = document.getElementById('goalTargetDate');
+        const goalProgressInput = document.getElementById('goalProgress'); 
+        const goalProgressValueDisplay = document.getElementById('goalProgressValue'); 
+        
+        const pomodoroTimerDisplay = document.getElementById('pomodoroTimerDisplay');
+        const pomodoroStatusDisplay = document.getElementById('pomodoroStatus');
+        const startPomodoroBtn = document.getElementById('startPomodoroBtn');
+        const pausePomodoroBtn = document.getElementById('pausePomodoroBtn');
+        const resetPomodoroBtn = document.getElementById('resetPomodoroBtn');
+        const skipPomodoroBtn = document.getElementById('skipPomodoroBtn');
+
+        const motivationalQuotes = [
+            "El éxito es la suma de pequeños esfuerzos repetidos día tras día. - Robert Collier",
+            "No te detengas hasta que estés orgulloso.",
+            "La disciplina es el puente entre metas y logros. - Jim Rohn",
+        ];
+
+        const studyTechniques = [
+            { name: "Técnica Feynman", desc: "Elige un concepto. Enséñaselo a otra persona (o imagínate que lo haces). Identifica las lagunas en tu comprensión al tratar de explicarlo. Revisa y simplifica tu explicación hasta que sea clara y concisa." },
+            { name: "Active Recall (Recuperación Activa)", desc: "Selecciona la información clave que deseas recordar. Cierra tus apuntes y recuerda activamente la información, ya sea escribiéndola o hablándola. Verifica tus respuestas con tus materiales de estudio para fortalecer la retención y enfocarte en las áreas de mejora. Repite el proceso si es necesario." },
+            { name: "Técnica Pomodoro", desc: "Elige una tarea. Trabaja intensamente durante 25 minutos. Descansa durante 5 minutos. Repite el ciclo. Después de cuatro 'pomodoros', toma un descanso más largo (15-30 minutos)." },
+            { name: "Repetición Espaciada", desc: "Identifica el material que deseas aprender. Establece intervalos de tiempo para repasar: comienza con revisiones frecuentes y aumenta gradualmente la separación entre repasos (ej. 1 día, 3 días, 1 semana, etc.). Repasa la información en los intervalos programados para optimizar la retención a largo plazo." },
+            { name: "Blurting Method (Método de Vaciado)", desc: "Elige un tema de estudio. Establece un límite de tiempo (por ejemplo, 10-15 minutos). Escribe continuamente todo lo que sepas sobre el tema sin preocuparte por la estructura, gramática o si está completo. Después, revisa tus notas originales, compara y destaca los puntos esenciales que olvidaste o entendiste mal, añadiéndolos en otro color para una comprensión más clara." },
+            { name: "Técnica de Flashcards (Tarjetas de Memoria)", desc: "Crea tarjetas con una pregunta o término en un lado y la respuesta o definición en el otro. Repásalas regularmente, intentando recordar la respuesta antes de voltear la tarjeta. Ideal para vocabulario, fechas, fórmulas y conceptos clave." },
+            { name: "Método 3-2-1", desc: "Se centra en la repetición multisensorial. Comienza leyendo el material tres veces para comprenderlo a fondo. Luego, repite la información en voz alta dos veces para reforzar la memoria verbal y auditiva. Finalmente, escribe la información una vez, lo cual compromete la memoria motora y visual." },
+            { name: "Hoja de Distracciones", desc: "Al estudiar, ten una hoja de papel cerca. Cuando surja un pensamiento o tarea no relacionada, anótala brevemente en la hoja. Luego, retoma el estudio inmediatamente. Al final de tu sesión de estudio, revisa la hoja y decide si es necesario abordar esas distracciones." },
+            { name: "Regla de los 5 Minutos", desc: "Si te cuesta empezar una tarea, comprométete a trabajar en ella durante solo 5 minutos. A menudo, una vez que comienzas y superas la inercia inicial, te resultará más fácil continuar por más tiempo." },
+            { name: "Ley de Parkinson", desc: "El trabajo se expande hasta llenar el tiempo disponible para que se termine. Ponte plazos realistas pero definidos para tus tareas para fomentar la eficiencia y evitar la procrastinación." },
+            { name: "Priming (Preparación)", desc: "Antes de una clase o de estudiar un tema en profundidad, dedica unos minutos a hojear el material, leer los encabezados, resúmenes o incluso hacer una breve prueba previa si está disponible. Esto 'prepara' tu cerebro, creando un esquema mental que te ayudará a conectar y recordar mejor los detalles nuevos." },
+            { name: "Método P + P (Procedimiento + Práctica)", desc: "Especialmente útil para asignaturas como matemáticas. 1. Procedimiento: Haz una lista detallada, paso a paso, de cómo resolver cada tipo de ejercicio o problema. 2. Práctica: Usa esa lista de procedimientos para practicar resolviendo muchos ejercicios, enfocándote en entender cada paso y manejando excepciones y variaciones." }
+        ];
+
+        function displayRandomQuote() {
+            if (motivationalQuoteEl) {
+                const randomIndex = Math.floor(Math.random() * motivationalQuotes.length);
+                motivationalQuoteEl.textContent = motivationalQuotes[randomIndex];
+            }
+        }
+        function displayStudyTechniques() {
+            const container = document.getElementById('studyTechniquesList');
+            if (container) {
+                container.innerHTML = ''; 
+                studyTechniques.forEach(tech => {
+                    const div = document.createElement('div');
+                    div.className = 'bg-indigo-50 p-4 rounded-lg shadow hover:shadow-md transition-shadow';
+                    div.innerHTML = `<h4 class="font-semibold text-indigo-700 text-lg">${tech.name}</h4><p class="text-sm text-gray-700 mt-1">${tech.desc}</p>`;
+                    container.appendChild(div);
+                });
+            }
+        }
+
+        function switchTab(targetTabId) {
+            Object.values(sections).forEach(section => { if (section) section.classList.add('hidden'); });
+            tabs.forEach(t => {
+                t.classList.remove('bg-indigo-700', 'text-white', 'shadow-md');
+                t.classList.add('hover:bg-indigo-100', 'text-indigo-700');
+            });
+            const activeTab = document.querySelector(`.tab-btn[data-tab="${targetTabId}"]`);
+            if (activeTab) {
+                activeTab.classList.add('bg-indigo-700', 'text-white', 'shadow-md');
+                activeTab.classList.remove('hover:bg-indigo-100', 'text-indigo-700');
+            }
+            if (sections[targetTabId]) { sections[targetTabId].classList.remove('hidden'); }
+            else if (sections.notas) { sections.notas.classList.remove('hidden'); }
+        }
+        tabs.forEach(tab => tab.addEventListener('click', () => switchTab(tab.dataset.tab)));
+
+        async function initializeAuthAndData() {
+            console.log("Inicializando autenticación y datos...");
+            if (!auth || !db) {
+                console.error("Firebase Auth/DB no disponible.");
+                if(authStatusEl) authStatusEl.textContent = "Error crítico Firebase.";
+                if(loadingIndicatorEl) loadingIndicatorEl.classList.add('hidden');
+                return;
+            }
+            
+            const persistenceEnabled = await initializeOfflinePersistence();
+            if (!persistenceEnabled && navigator.onLine) { 
+                showModal("Advertencia de Persistencia", "No se pudo habilitar la persistencia offline. La aplicación podría no funcionar sin conexión o entre múltiples pestañas sin conexión.");
+            }
+
+            if(loadingIndicatorEl) loadingIndicatorEl.classList.remove('hidden');
+
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    console.log("Usuario autenticado:", userId);
+                    if(authStatusEl) authStatusEl.textContent = `Conectado`;
+                    if(userIdDisplayEl) userIdDisplayEl.textContent = `ID: ${userId.substring(0,10)}...`;
+                    
+                    notesCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/notes`);
+                    tasksCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/tasks`);
+                    goalsCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/goals`);
+                    
+                    loadNotes(); loadTasks(); loadGoals();
+                    
+                    switchTab('notas'); 
+                    displayRandomQuote();
+                    displayStudyTechniques();
+
+                } else {
+                    console.log("Usuario no autenticado. Intentando inicio de sesión...");
+                    if(authStatusEl) authStatusEl.textContent = "Autenticando...";
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Error en signIn:", error);
+                        if(authStatusEl) authStatusEl.textContent = "Error de autenticación.";
+                        showModal("Error de autenticación", "No se pudo conectar. Verifica tu conexión/configuración.");
+                    }
+                }
+                if(loadingIndicatorEl) loadingIndicatorEl.classList.add('hidden');
+            });
+        }
+        
+        function escapeHTML(str) {
+            if (typeof str !== 'string') return '';
+            return str.replace(/[&<>"']/g, match => ({'&': '&amp;','<': '&lt;','>': '&gt;','"': '&quot;',"'": '&#39;'})[match]);
+        }
+        
+        async function loadNotes() {
+            if (!notesCollectionRef) return; 
+            if (unsubscribeNotes) unsubscribeNotes();
+            const q = query(notesCollectionRef); 
+            unsubscribeNotes = onSnapshot(q, snapshot => {
+                allNotes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderFilteredNotes();
+            }, error => {
+                console.error("Error en listener de notas:", error);
+                showModal("Error de Notas", "Problema al actualizar notas.");
+            });
+        }
+        function renderFilteredNotes() {
+            const notesContainerEl = document.getElementById('notesContainer'); 
+            const noNotesMessageEl = document.getElementById('noNotesMessage'); 
+            if (!notesContainerEl || !noNotesMessageEl) return;
+            notesContainerEl.innerHTML = '';
+            const filtered = currentNoteFilter === 'Todas' ? allNotes : allNotes.filter(note => note.category === currentNoteFilter);
+            const sorted = filtered.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+            noNotesMessageEl.classList.toggle('hidden', sorted.length > 0);
+            sorted.forEach(note => renderNote(note, notesContainerEl)); 
+        }
+        const noteCategoryFilterButtons = document.querySelectorAll('.note-category-filter-btn');
+        noteCategoryFilterButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                currentNoteFilter = button.dataset.filter;
+                noteCategoryFilterButtons.forEach(btn => {
+                    btn.classList.remove('bg-indigo-600', 'text-white', 'ring-2', 'ring-indigo-300');
+                    btn.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+                });
+                button.classList.add('bg-indigo-600', 'text-white', 'ring-2', 'ring-indigo-300');
+                renderFilteredNotes();
+            });
+        });
+        function getNoteCategoryColor(category) {
+            const colors = { 'Estudios': 'border-blue-500', 'Música': 'border-purple-500', 'Personal': 'border-green-500' };
+            return colors[category] || 'border-gray-400';
+        }
+        function renderNote(note, container) { 
+            const noteEl = document.createElement('div');
+            noteEl.className = `bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 ease-in-out break-words border-l-4 ${getNoteCategoryColor(note.category)}`;
+            noteEl.innerHTML = `
+                <div class="flex justify-between items-start mb-2">
+                    <h3 class="text-xl font-semibold text-indigo-700">${escapeHTML(note.title)}</h3>
+                    <span class="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded-full">${escapeHTML(note.category) || 'Sin Categoría'}</span>
+                </div>
+                <p class="text-gray-700 whitespace-pre-wrap mb-3">${escapeHTML(note.content)}</p>
+                <div class="text-xs text-gray-500 mb-4">
+                    ${note.createdAt?.seconds ? new Date(note.createdAt.seconds * 1000).toLocaleString() : 'Fecha no disponible'}
+                </div>
+                <button data-id="${note.id}" class="delete-note-btn bg-red-500 hover:bg-red-700 text-white text-sm font-medium py-2 px-3 rounded-md transition-colors">
+                    <i class="fas fa-trash-alt mr-1"></i> Eliminar
+                </button>`;
+            container.appendChild(noteEl);
+            noteEl.querySelector('.delete-note-btn').addEventListener('click', () => {
+                showConfirmationModal("Eliminar Nota", "¿Seguro que quieres eliminar esta nota?", () => deleteNote(note.id));
+            });
+        }
+        if (noteForm) {
+            noteForm.addEventListener('submit', async e => {
+                e.preventDefault();
+                const title = noteTitleInput.value.trim();
+                const content = noteContentInput.value.trim();
+                const category = noteCategoryInput.value;
+                if (!title || !content || !category) { showModal("Campos incompletos", "Título, contenido y categoría son requeridos."); return; }
+                if (!notesCollectionRef) { showModal("Error", "Base de datos no lista."); return; }
+                try {
+                    if(loadingIndicatorEl) loadingIndicatorEl.classList.remove('hidden');
+                    await addDoc(notesCollectionRef, { title, content, category, createdAt: serverTimestamp(), userId });
+                    noteForm.reset();
+                } catch (error) { console.error("Error añadiendo nota:", error); showModal("Error al Guardar", "No se pudo guardar la nota."); }
+                finally { if(loadingIndicatorEl) loadingIndicatorEl.classList.add('hidden'); }
+            });
+        }
+        async function deleteNote(id) {
+            if (!notesCollectionRef) { showModal("Error", "Base de datos no lista."); return; }
+            try { await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/notes`, id)); }
+            catch (error) { console.error("Error eliminando nota:", error); showModal("Error al Eliminar", "No se pudo eliminar la nota."); }
+        }
+
+        async function loadTasks() {
+            if (!tasksCollectionRef) return;
+            if (unsubscribeTasks) unsubscribeTasks();
+            const q = query(tasksCollectionRef); 
+            unsubscribeTasks = onSnapshot(q, snapshot => {
+                allTasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderFilteredTasks();
+            }, error => {
+                console.error("Error en listener de tareas:", error);
+                showModal("Error de Tareas", "Problema al actualizar tareas.");
+            });
+        }
+        function getTaskPriorityClass(priority) {
+            if (priority === 'Alta') return 'border-red-500 bg-red-50 text-red-700';
+            if (priority === 'Media') return 'border-yellow-500 bg-yellow-50 text-yellow-700';
+            if (priority === 'Baja') return 'border-green-500 bg-green-50 text-green-700';
+            return 'border-gray-300 bg-gray-50 text-gray-700';
+        }
+        function getTaskCategoryIcon(category) {
+            if (category === 'Estudios') return 'fas fa-book';
+            if (category === 'Música') return 'fas fa-music';
+            if (category === 'Personal') return 'fas fa-user';
+            return 'fas fa-tag';
+        }
+        function renderTask(task, container) { 
+            const taskEl = document.createElement('div');
+            const priorityClass = getTaskPriorityClass(task.priority);
+            const categoryIcon = getTaskCategoryIcon(task.category);
+            const isCompleted = task.completed;
+            taskEl.className = `p-4 rounded-lg shadow-sm border-l-4 ${isCompleted ? 'bg-gray-100 opacity-60' : 'bg-white'} ${priorityClass.split(' ')[0]} mb-3`;
+            taskEl.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h4 class="text-lg font-semibold ${isCompleted ? 'line-through text-gray-500' : 'text-gray-800'}">${escapeHTML(task.description)}</h4>
+                        <div class="text-xs mt-1 flex items-center space-x-3">
+                            <span class="text-gray-500"><i class="${categoryIcon} mr-1"></i> ${escapeHTML(task.category)}</span>
+                            ${task.dueDate ? `<span class="text-gray-500"><i class="fas fa-calendar-alt mr-1"></i> ${new Date(task.dueDate + 'T00:00:00').toLocaleDateString()}</span>` : ''}
+                            <span class="px-2 py-0.5 rounded-full text-xs font-medium ${priorityClass.split(' ').slice(1).join(' ')}">${escapeHTML(task.priority)}</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end space-y-1">
+                         <button data-id="${task.id}" class="toggle-complete-task-btn text-sm ${isCompleted ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600'} text-white py-1 px-2 rounded">
+                            <i class="fas ${isCompleted ? 'fa-undo' : 'fa-check'}"></i>
+                        </button>
+                        <button data-id="${task.id}" class="delete-task-btn text-sm bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                ${isCompleted && task.completedAt?.seconds ? `<p class="text-xs text-green-600 mt-2">Completada el: ${new Date(task.completedAt.seconds * 1000).toLocaleString()}</p>` : ''}
+            `;
+            container.appendChild(taskEl);
+            taskEl.querySelector('.delete-task-btn').addEventListener('click', () => {
+                showConfirmationModal("Eliminar Tarea", "¿Seguro que quieres eliminar esta tarea?", () => deleteTask(task.id));
+            });
+            taskEl.querySelector('.toggle-complete-task-btn').addEventListener('click', () => toggleTaskComplete(task.id, !isCompleted));
+        }
+        function renderFilteredTasks() {
+            const tasksContainerEl = document.getElementById('tasksContainer'); 
+            const noTasksMessageEl = document.getElementById('noTasksMessage'); 
+            if (!tasksContainerEl || !noTasksMessageEl) return;
+            tasksContainerEl.innerHTML = '';
+            let filteredTasks = allTasks;
+            if (currentTaskFilter === 'Pendientes') filteredTasks = allTasks.filter(task => !task.completed);
+            else if (currentTaskFilter === 'Completadas') filteredTasks = allTasks.filter(task => task.completed);
+            else if (currentTaskFilter !== 'Todas') filteredTasks = allTasks.filter(task => task.category === currentTaskFilter);
+
+            const priorityOrder = { 'Alta': 1, 'Media': 2, 'Baja': 3 };
+            const sorted = filteredTasks.sort((a, b) => {
+                if (a.completed !== b.completed) return a.completed ? 1 : -1;
+                if (a.dueDate && b.dueDate) { const dateA = new Date(a.dueDate); const dateB = new Date(b.dueDate); if (dateA.getTime() !== dateB.getTime()) return dateA - dateB; }
+                else if (a.dueDate) return -1; else if (b.dueDate) return 1;
+                return (priorityOrder[a.priority] || 4) - (priorityOrder[b.priority] || 4);
+            });
+            noTasksMessageEl.classList.toggle('hidden', sorted.length > 0);
+            sorted.forEach(task => renderTask(task, tasksContainerEl)); 
+        }
+        const taskFilterButtons = document.querySelectorAll('.task-filter-btn');
+        taskFilterButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                currentTaskFilter = button.dataset.filter;
+                 taskFilterButtons.forEach(btn => {
+                    btn.classList.remove('bg-indigo-600', 'text-white', 'ring-2', 'ring-indigo-300');
+                    btn.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+                });
+                button.classList.add('bg-indigo-600', 'text-white', 'ring-2', 'ring-indigo-300');
+                renderFilteredTasks();
+            });
+        });
+        if(taskForm) {
+            taskForm.addEventListener('submit', async e => {
+                e.preventDefault();
+                const description = taskDescriptionInput.value.trim();
+                const category = taskCategoryInput.value;
+                const dueDate = taskDueDateInput.value;
+                const priority = taskPriorityInput.value;
+                if (!description || !category || !priority) { showModal("Campos incompletos", "Descripción, categoría y prioridad son requeridas."); return; }
+                if (!tasksCollectionRef) { showModal("Error", "Base de datos no lista."); return; }
+                try {
+                    if(loadingIndicatorEl) loadingIndicatorEl.classList.remove('hidden');
+                    await addDoc(tasksCollectionRef, { description, category, dueDate, priority, completed: false, createdAt: serverTimestamp(), userId });
+                    taskForm.reset();
+                } catch (error) { console.error("Error añadiendo tarea:", error); showModal("Error al Guardar", "No se pudo guardar la tarea."); }
+                finally { if(loadingIndicatorEl) loadingIndicatorEl.classList.add('hidden'); }
+            });
+        }
+        async function deleteTask(id) {
+            if (!tasksCollectionRef) { showModal("Error", "Base de datos no lista."); return; }
+            try { await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/tasks`, id)); }
+            catch (error) { console.error("Error eliminando tarea:", error); showModal("Error al Eliminar", "No se pudo eliminar la tarea."); }
+        }
+        async function toggleTaskComplete(id, isCompleted) {
+            if (!tasksCollectionRef) { showModal("Error", "Base de datos no lista."); return; }
+            try {
+                const taskRef = doc(db, `artifacts/${appId}/users/${userId}/tasks`, id);
+                await updateDoc(taskRef, { completed: isCompleted, completedAt: isCompleted ? serverTimestamp() : null });
+            } catch (error) { console.error("Error actualizando tarea:", error); showModal("Error al Actualizar", "No se pudo actualizar la tarea."); }
+        }
+
+        async function loadGoals() {
+            if (!goalsCollectionRef) return;
+            if (unsubscribeGoals) unsubscribeGoals();
+            const q = query(goalsCollectionRef); 
+            unsubscribeGoals = onSnapshot(q, snapshot => {
+                allGoals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderGoals();
+            }, error => {
+                console.error("Error en listener de metas:", error);
+                showModal("Error de Metas", "Problema al actualizar metas.");
+            });
+        }
+        function renderGoal(goal, container) { 
+            const goalEl = document.createElement('div');
+            const isAchieved = goal.achieved;
+            goalEl.className = `bg-white p-5 rounded-lg shadow-md mb-4 border-l-4 ${isAchieved ? 'border-green-500 opacity-70' : 'border-yellow-500'}`;
+            goalEl.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <h4 class="text-xl font-semibold ${isAchieved ? 'line-through text-gray-600' : 'text-gray-800'}">${escapeHTML(goal.description)}</h4>
+                    <div class="flex items-center space-x-2">
+                        <button data-id="${goal.id}" class="toggle-achieved-goal-btn text-sm ${isAchieved ? 'bg-orange-500 hover:bg-orange-600' : 'bg-teal-500 hover:bg-teal-600'} text-white py-1 px-2 rounded">
+                            <i class="fas ${isAchieved ? 'fa-undo' : 'fa-trophy'}"></i>
+                        </button>
+                        <button data-id="${goal.id}" class="delete-goal-btn text-sm bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-sm text-gray-500 mt-1">Objetivo para: ${goal.targetDate ? new Date(goal.targetDate + 'T00:00:00').toLocaleDateString() : 'Sin fecha'}</p>
+                <div class="mt-3">
+                    <label for="progress-${goal.id}" class="text-sm font-medium text-gray-700">Progreso: <span class="goal-progress-display-value">${goal.progress}%</span></label>
+                    <div class="flex items-center">
+                        <input type="range" id="progress-${goal.id}" data-id="${goal.id}" value="${goal.progress}" min="0" max="100" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 goal-progress-slider" ${isAchieved ? 'disabled' : ''}>
+                        <span class="ml-2 text-sm font-semibold text-indigo-600 w-10 text-right goal-progress-display-value-live">${goal.progress}%</span>
+                    </div>
+                </div>
+                ${isAchieved && goal.achievedAt?.seconds ? `<p class="text-xs text-green-700 font-semibold mt-2">¡Meta Alcanzada el ${new Date(goal.achievedAt.seconds * 1000).toLocaleDateString()}!</p>` : ''}
+            `;
+            container.appendChild(goalEl);
+            goalEl.querySelector('.delete-goal-btn').addEventListener('click', () => {
+                showConfirmationModal("Eliminar Meta", "¿Seguro que quieres eliminar esta meta?", () => deleteGoal(goal.id));
+            });
+            goalEl.querySelector('.toggle-achieved-goal-btn').addEventListener('click', () => toggleGoalAchieved(goal.id, !isAchieved, goal.progress));
+            const progressSlider = goalEl.querySelector('.goal-progress-slider');
+            const progressDisplayLive = goalEl.querySelector('.goal-progress-display-value-live');
+            progressSlider.addEventListener('input', (e) => { if(progressDisplayLive) progressDisplayLive.textContent = `${e.target.value}%`; });
+            progressSlider.addEventListener('change', (e) => { updateGoalProgress(goal.id, parseInt(e.target.value)); });
+        }
+        function renderGoals() {
+            const goalsContainerEl = document.getElementById('goalsContainer'); 
+            const noGoalsMessageEl = document.getElementById('noGoalsMessage'); 
+            if (!goalsContainerEl || !noGoalsMessageEl) return;
+            goalsContainerEl.innerHTML = '';
+            const sortedGoals = allGoals.sort((a, b) => {
+                if (a.achieved !== b.achieved) return a.achieved ? 1 : -1;
+                if (a.targetDate && b.targetDate) return new Date(a.targetDate) - new Date(b.targetDate);
+                return 0;
+            });
+            noGoalsMessageEl.classList.toggle('hidden', sortedGoals.length > 0);
+            sortedGoals.forEach(goal => renderGoal(goal, goalsContainerEl)); 
+        }
+        if(goalForm) {
+            goalForm.addEventListener('submit', async e => {
+                e.preventDefault();
+                const description = goalDescriptionInput.value.trim();
+                const targetDate = goalTargetDateInput.value;
+                const progress = parseInt(goalProgressInput.value);
+                if (!description) { showModal("Campo incompleto", "La descripción de la meta es requerida."); return; }
+                if (!goalsCollectionRef) { showModal("Error", "Base de datos no lista."); return; }
+                try {
+                    if(loadingIndicatorEl) loadingIndicatorEl.classList.remove('hidden');
+                    await addDoc(goalsCollectionRef, { description, targetDate, progress, achieved: false, createdAt: serverTimestamp(), userId });
+                    goalForm.reset();
+                    goalProgressInput.value = 0; 
+                    if(goalProgressValueDisplay) goalProgressValueDisplay.textContent = '0%';
+                } catch (error) { console.error("Error añadiendo meta:", error); showModal("Error al Guardar", "No se pudo guardar la meta."); }
+                finally { if(loadingIndicatorEl) loadingIndicatorEl.classList.add('hidden'); }
+            });
+        }
+        async function deleteGoal(id) {
+            if (!goalsCollectionRef) { showModal("Error", "Base de datos no lista."); return; }
+            try { await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/goals`, id)); }
+            catch (error) { console.error("Error eliminando meta:", error); showModal("Error al Eliminar", "No se pudo eliminar la meta."); }
+        }
+        async function toggleGoalAchieved(id, isAchieved, currentProgress) {
+            if (!goalsCollectionRef) { showModal("Error", "Base de datos no lista."); return; }
+            try {
+                const goalRef = doc(db, `artifacts/${appId}/users/${userId}/goals`, id);
+                const updateData = { achieved: isAchieved, achievedAt: isAchieved ? serverTimestamp() : null };
+                if (isAchieved && currentProgress < 100) updateData.progress = 100;
+                await updateDoc(goalRef, updateData);
+            } catch (error) { console.error("Error actualizando meta:", error); showModal("Error al Actualizar", "No se pudo actualizar la meta."); }
+        }
+        async function updateGoalProgress(id, progress) {
+            if (!goalsCollectionRef) { showModal("Error", "Base de datos no lista."); return; }
+            try {
+                const goalRef = doc(db, `artifacts/${appId}/users/${userId}/goals`, id);
+                const updateData = { progress };
+                if (progress === 100) { updateData.achieved = true; updateData.achievedAt = serverTimestamp(); }
+                else { updateData.achieved = false; updateData.achievedAt = null; }
+                await updateDoc(goalRef, updateData);
+            } catch (error) { console.error("Error actualizando progreso de meta:", error); showModal("Error al Actualizar", "No se pudo actualizar el progreso.");}
+        }
+        if (goalProgressInput && goalProgressValueDisplay) {
+            goalProgressInput.addEventListener('input', () => {
+                goalProgressValueDisplay.textContent = `${goalProgressInput.value}%`;
+            });
+        }
+
+        const POMODORO_STATES = { WORK: 'work', SHORT_BREAK: 'short_break', LONG_BREAK: 'long_break' };
+        const POMODORO_DURATIONS = { [POMODORO_STATES.WORK]: 25, [POMODORO_STATES.SHORT_BREAK]: 5, [POMODORO_STATES.LONG_BREAK]: 15 };
+        let pomodoroInterval = null, currentPomodoroState = POMODORO_STATES.WORK;
+        let pomodoroTimeLeft = POMODORO_DURATIONS[POMODORO_STATES.WORK] * 60;
+        let pomodoroCycles = 0, isPomodoroPaused = true;
+        let pomodoroAudio; 
+        try { pomodoroAudio = new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg'); }
+        catch (e) { console.warn("Audio API no disponible."); pomodoroAudio = null; }
+
+        function updatePomodoroDisplay() {
+            if(!pomodoroTimerDisplay || !pomodoroStatusDisplay) return;
+            const minutes = Math.floor(pomodoroTimeLeft / 60);
+            const seconds = pomodoroTimeLeft % 60;
+            pomodoroTimerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            let statusText = "";
+            if (currentPomodoroState === POMODORO_STATES.WORK) statusText = "Concentración";
+            else if (currentPomodoroState === POMODORO_STATES.SHORT_BREAK) statusText = "Descanso Corto";
+            else if (currentPomodoroState === POMODORO_STATES.LONG_BREAK) statusText = "Descanso Largo";
+            if (!isPomodoroPaused) statusText += " (En curso)"; else if(pomodoroTimeLeft < POMODORO_DURATIONS[currentPomodoroState]*60) statusText += " (Pausado)";
+            pomodoroStatusDisplay.textContent = statusText;
+        }
+        function startNextPomodoroSession(skipped = false) {
+            clearInterval(pomodoroInterval); isPomodoroPaused = true;
+            if (!skipped && currentPomodoroState === POMODORO_STATES.WORK) pomodoroCycles++;
+            currentPomodoroState = (currentPomodoroState === POMODORO_STATES.WORK) ? ((pomodoroCycles % 4 === 0) ? POMODORO_STATES.LONG_BREAK : POMODORO_STATES.SHORT_BREAK) : POMODORO_STATES.WORK;
+            pomodoroTimeLeft = POMODORO_DURATIONS[currentPomodoroState] * 60;
+            updatePomodoroDisplay();
+            if(startPomodoroBtn) startPomodoroBtn.disabled = false; 
+            if(pausePomodoroBtn) pausePomodoroBtn.disabled = true;
+            if (pomodoroAudio) { pomodoroAudio.play().catch(e => console.warn("Error al reproducir audio Pomodoro:", e));}
+            showModal("Pomodoro", `¡Tiempo! Iniciando ${pomodoroStatusDisplay.textContent}.`);
+        }
+        if(startPomodoroBtn) startPomodoroBtn.addEventListener('click', () => {
+            if(isPomodoroPaused) {
+                isPomodoroPaused = false;
+                pomodoroInterval = setInterval(() => {
+                    pomodoroTimeLeft--;
+                    if (pomodoroTimeLeft < 0) startNextPomodoroSession(); else updatePomodoroDisplay();
+                }, 1000);
+                startPomodoroBtn.disabled = true; if(pausePomodoroBtn) pausePomodoroBtn.disabled = false;
+                updatePomodoroDisplay();
+            }
+        });
+        if(pausePomodoroBtn) pausePomodoroBtn.addEventListener('click', () => {
+            clearInterval(pomodoroInterval); isPomodoroPaused = true;
+            if(startPomodoroBtn) startPomodoroBtn.disabled = false; pausePomodoroBtn.disabled = true;
+            updatePomodoroDisplay();
+        });
+        if(resetPomodoroBtn) resetPomodoroBtn.addEventListener('click', () => {
+            clearInterval(pomodoroInterval); isPomodoroPaused = true;
+            currentPomodoroState = POMODORO_STATES.WORK; pomodoroTimeLeft = POMODORO_DURATIONS[POMODORO_STATES.WORK] * 60;
+            pomodoroCycles = 0; updatePomodoroDisplay();
+            if(startPomodoroBtn) startPomodoroBtn.disabled = false; if(pausePomodoroBtn) pausePomodoroBtn.disabled = true;
+        });
+        if(skipPomodoroBtn) skipPomodoroBtn.addEventListener('click', () => startNextPomodoroSession(true));
+
+        const modalElFromDOM = document.getElementById('modalEl');
+        const modalTitleElFromDOM = document.getElementById('modalTitleEl');
+        const modalMessageElFromDOM = document.getElementById('modalMessageEl');
+        const modalCloseButtonElFromDOM = document.getElementById('modalCloseButtonEl');
+        function showModal(title, message) { 
+            if(!modalElFromDOM || !modalTitleElFromDOM || !modalMessageElFromDOM) return;
+            modalTitleElFromDOM.textContent = title; 
+            modalMessageElFromDOM.textContent = message; 
+            modalElFromDOM.classList.remove('hidden'); 
+        }
+        if(modalCloseButtonElFromDOM) modalCloseButtonElFromDOM.addEventListener('click', () => modalElFromDOM.classList.add('hidden'));
+        
+        const confirmModalElFromDOM = document.getElementById('confirmationModalEl');
+        const confirmModalTitleElFromDOM = document.getElementById('confirmationModalTitleEl');
+        const confirmModalMsgElFromDOM = document.getElementById('confirmationModalMessageEl');
+        const confirmBtnElFromDOM = document.getElementById('confirmationModalConfirmButtonEl');
+        const cancelBtnElFromDOM = document.getElementById('confirmationModalCancelButtonEl');
+        let currentConfirmAction = null;
+        function showConfirmationModal(title, message, onConfirm) { 
+            if(!confirmModalElFromDOM || !confirmModalTitleElFromDOM || !confirmModalMsgElFromDOM) return;
+            confirmModalTitleElFromDOM.textContent = title; 
+            confirmModalMsgElFromDOM.textContent = message; 
+            currentConfirmAction = onConfirm; 
+            confirmModalElFromDOM.classList.remove('hidden'); 
+        }
+        if(confirmBtnElFromDOM) confirmBtnElFromDOM.addEventListener('click', () => { if (currentConfirmAction) currentConfirmAction(); confirmModalElFromDOM.classList.add('hidden'); currentConfirmAction = null; });
+        if(cancelBtnElFromDOM) cancelBtnElFromDOM.addEventListener('click', () => { confirmModalElFromDOM.classList.add('hidden'); currentConfirmAction = null; });
+
+        // --- Service Worker related code removed ---
+        // The SW_CODE constant and registerServiceWorker function are no longer needed.
+        // The call to registerServiceWorker in window.onload is also removed.
+        // The app will rely on Firestore's built-in offline persistence and browser caching.
+
+        window.onload = () => {
+            console.log("window.onload disparado.");
+            if (app && db && auth) { 
+                initializeAuthAndData();
+                // No longer calling registerServiceWorker()
+            } else {
+                 console.error("Firebase no se inicializó. Funcionalidad principal afectada.");
+                 if(authStatusEl) authStatusEl.textContent = "Error: Fallo Firebase.";
+                 if(loadingIndicatorEl) loadingIndicatorEl.classList.add('hidden');
+            }
+            updatePomodoroDisplay();
+        };
+        console.log("Script finalizado.");
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #eef2f7; } 
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #e5e7eb; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #a5b4fc; border-radius: 10px; } 
+        ::-webkit-scrollbar-thumb:hover { background: #818cf8; }
+        .break-words { overflow-wrap: break-word; word-wrap: break-word; word-break: break-word; }
+        .tab-btn.bg-indigo-700 { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
+        .form-input, .form-select, .form-textarea {
+            @apply mt-1 block w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-colors;
+        }
+        .form-label { @apply block text-sm font-medium text-gray-700 mb-1; }
+        .section-container { @apply p-6 bg-white rounded-xl shadow-xl; } 
+        .section-title { @apply text-2xl font-semibold text-gray-800 mb-6 flex items-center; }
+        .action-button { @apply py-2.5 px-5 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2; }
+        .primary-button { @apply bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500; }
+        .danger-button { @apply bg-red-600 hover:bg-red-700 focus:ring-red-500; }
+        .success-button { @apply bg-green-600 hover:bg-green-700 focus:ring-green-500; }
+        .warning-button { @apply bg-yellow-500 hover:bg-yellow-600 focus:ring-yellow-500; }
+    </style>
+</head>
+<body class="text-gray-900 antialiased">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-7xl">
+        <header class="mb-6 text-center">
+            <div class="flex justify-center items-center mb-2">
+                 <i class="fas fa-rocket text-5xl text-indigo-600 mr-3"></i>
+                 <h1 class="text-4xl sm:text-5xl font-bold text-indigo-700">Segundo Cerebro V3.3</h1>
+            </div>
+            <p id="motivationalQuoteEl" class="text-gray-600 mt-1 italic">Cargando inspiración...</p>
+            <div class="flex justify-center items-center space-x-4 mt-3 text-xs text-gray-500">
+                <span id="authStatusEl">Cargando...</span>
+                <span id="userIdDisplayEl" class="font-mono"></span>
+            </div>
+        </header>
+
+        <div id="loadingIndicatorEl" class="hidden fixed top-0 left-0 w-full h-full bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+            <div class="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-indigo-500"></div>
+        </div>
+        
+        <nav class="mb-8 flex flex-wrap justify-center gap-2 sm:gap-3">
+            <button data-tab="notas" class="tab-btn py-2.5 px-5 rounded-lg font-medium transition-colors duration-150 focus:outline-none flex items-center"><i class="fas fa-sticky-note mr-2"></i>Notas</button>
+            <button data-tab="tareas" class="tab-btn py-2.5 px-5 rounded-lg font-medium transition-colors duration-150 focus:outline-none flex items-center"><i class="fas fa-tasks mr-2"></i>Tareas</button>
+            <button data-tab="metas" class="tab-btn py-2.5 px-5 rounded-lg font-medium transition-colors duration-150 focus:outline-none flex items-center"><i class="fas fa-bullseye mr-2"></i>Metas</button>
+            <button data-tab="pomodoro" class="tab-btn py-2.5 px-5 rounded-lg font-medium transition-colors duration-150 focus:outline-none flex items-center"><i class="fas fa-clock mr-2"></i>Pomodoro</button>
+            <button data-tab="recursos" class="tab-btn py-2.5 px-5 rounded-lg font-medium transition-colors duration-150 focus:outline-none flex items-center"><i class="fas fa-book-reader mr-2"></i>Recursos</button>
+        </nav>
+
+        <main id="mainContentArea">
+            <div id="notasSectionContainer" class="hidden">
+                <section class="section-container mb-8">
+                    <h2 class="section-title"><i class="fas fa-plus-circle text-indigo-500 mr-3"></i>Añadir Nueva Nota</h2>
+                    <form id="noteForm" class="space-y-5">
+                        <div>
+                            <label for="noteTitle" class="form-label">Título</label>
+                            <input type="text" id="noteTitle" name="noteTitle" required class="form-input" placeholder="Ej: Resumen Capítulo 5 - Biología">
+                        </div>
+                        <div>
+                            <label for="noteCategory" class="form-label">Categoría</label>
+                            <select id="noteCategory" name="noteCategory" required class="form-select">
+                                <option value="" disabled selected>Selecciona una categoría...</option>
+                                <option value="Estudios">Estudios</option>
+                                <option value="Música">Música</option>
+                                <option value="Personal">Personal</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="noteContent" class="form-label">Contenido</label>
+                            <textarea id="noteContent" name="noteContent" rows="5" required class="form-textarea" placeholder="Escribe tus ideas, apuntes, letras..."></textarea>
+                        </div>
+                        <button type="submit" class="action-button primary-button w-full flex items-center justify-center"><i class="fas fa-save mr-2"></i>Guardar Nota</button>
+                    </form>
+                </section>
+                <section class="section-container">
+                    <div class="flex flex-wrap justify-between items-center mb-6">
+                        <h2 class="section-title !mb-0"><i class="fas fa-list-alt text-indigo-500 mr-3"></i>Mis Notas</h2>
+                        <div class="flex space-x-2 mt-3 sm:mt-0">
+                            <button data-filter="Todas" class="note-category-filter-btn text-sm py-1.5 px-3 rounded-md transition-colors bg-indigo-600 text-white ring-2 ring-indigo-300">Todas</button>
+                            <button data-filter="Estudios" class="note-category-filter-btn text-sm py-1.5 px-3 rounded-md transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300">Estudios</button>
+                            <button data-filter="Música" class="note-category-filter-btn text-sm py-1.5 px-3 rounded-md transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300">Música</button>
+                            <button data-filter="Personal" class="note-category-filter-btn text-sm py-1.5 px-3 rounded-md transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300">Personal</button>
+                        </div>
+                    </div>
+                    <div id="noNotesMessage" class="hidden text-center text-gray-500 py-10 bg-gray-50 rounded-lg">
+                        <i class="fas fa-folder-open text-5xl text-gray-400 mb-3"></i>
+                        <h3 class="text-lg font-medium">Aún no hay notas aquí.</h3>
+                        <p class="text-sm">¡Comienza añadiendo algunas!</p>
+                    </div>
+                    <div id="notesContainer" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+                </section>
+            </div>
+
+            <div id="tareasSectionContainer" class="hidden">
+                <section class="section-container mb-8">
+                    <h2 class="section-title"><i class="fas fa-calendar-plus text-indigo-500 mr-3"></i>Añadir Nueva Tarea</h2>
+                    <form id="taskForm" class="space-y-5">
+                        <div>
+                            <label for="taskDescription" class="form-label">Descripción de la Tarea</label>
+                            <input type="text" id="taskDescription" required class="form-input" placeholder="Ej: Terminar ensayo de literatura">
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label for="taskCategory" class="form-label">Categoría</label>
+                                <select id="taskCategory" required class="form-select">
+                                    <option value="" disabled selected>Seleccionar...</option>
+                                    <option value="Estudios">Estudios</option>
+                                    <option value="Música">Música</option>
+                                    <option value="Personal">Personal</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="taskDueDate" class="form-label">Fecha de Entrega (Opcional)</label>
+                                <input type="date" id="taskDueDate" class="form-input">
+                            </div>
+                            <div>
+                                <label for="taskPriority" class="form-label">Prioridad</label>
+                                <select id="taskPriority" required class="form-select">
+                                    <option value="Baja">Baja</option>
+                                    <option value="Media" selected>Media</option>
+                                    <option value="Alta">Alta</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="action-button primary-button w-full flex items-center justify-center"><i class="fas fa-plus-circle mr-2"></i>Añadir Tarea</button>
+                    </form>
+                </section>
+                <section class="section-container">
+                     <div class="flex flex-wrap justify-between items-center mb-6">
+                        <h2 class="section-title !mb-0"><i class="fas fa-clipboard-list text-indigo-500 mr-3"></i>Mis Tareas</h2>
+                        <div class="flex space-x-2 mt-3 sm:mt-0">
+                            <button data-filter="Todas" class="task-filter-btn text-sm py-1.5 px-3 rounded-md transition-colors bg-indigo-600 text-white ring-2 ring-indigo-300">Todas</button>
+                            <button data-filter="Pendientes" class="task-filter-btn text-sm py-1.5 px-3 rounded-md transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300">Pendientes</button>
+                            <button data-filter="Completadas" class="task-filter-btn text-sm py-1.5 px-3 rounded-md transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300">Completadas</button>
+                            <button data-filter="Estudios" class="task-filter-btn text-sm py-1.5 px-3 rounded-md transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300">Estudios</button>
+                             <button data-filter="Música" class="task-filter-btn text-sm py-1.5 px-3 rounded-md transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300">Música</button>
+                        </div>
+                    </div>
+                    <div id="noTasksMessage" class="hidden text-center text-gray-500 py-10 bg-gray-50 rounded-lg">
+                        <i class="fas fa-tasks text-5xl text-gray-400 mb-3"></i>
+                        <h3 class="text-lg font-medium">¡Todo al día! No hay tareas aquí.</h3>
+                    </div>
+                    <div id="tasksContainer" class="space-y-3"></div>
+                </section>
+            </div>
+
+            <div id="metasSectionContainer" class="hidden">
+                <section class="section-container mb-8">
+                     <h2 class="section-title"><i class="fas fa-flag-checkered text-indigo-500 mr-3"></i>Añadir Nueva Meta</h2>
+                    <form id="goalForm" class="space-y-5">
+                        <div>
+                            <label for="goalDescription" class="form-label">Descripción de la Meta</label>
+                            <input type="text" id="goalDescription" required class="form-input" placeholder="Ej: Aprender 5 escalas nuevas en guitarra">
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="goalTargetDate" class="form-label">Fecha Objetivo (Opcional)</label>
+                                <input type="date" id="goalTargetDate" class="form-input">
+                            </div>
+                            <div>
+                                <label for="goalProgress" class="form-label">Progreso Inicial: <span id="goalProgressValue">0%</span></label>
+                                <input type="range" id="goalProgress" value="0" min="0" max="100" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                            </div>
+                        </div>
+                        <button type="submit" class="action-button primary-button w-full flex items-center justify-center"><i class="fas fa-crosshairs mr-2"></i>Establecer Meta</button>
+                    </form>
+                </section>
+                <section class="section-container">
+                    <h2 class="section-title"><i class="fas fa-trophy text-indigo-500 mr-3"></i>Mis Metas</h2>
+                     <div id="noGoalsMessage" class="hidden text-center text-gray-500 py-10 bg-gray-50 rounded-lg">
+                        <i class="fas fa-lightbulb text-5xl text-gray-400 mb-3"></i>
+                        <h3 class="text-lg font-medium">Aún no has definido metas.</h3>
+                        <p class="text-sm">¡Es un buen momento para empezar!</p>
+                    </div>
+                    <div id="goalsContainer" class="space-y-4"></div>
+                </section>
+            </div>
+            
+            <section id="pomodoroSection" class="hidden section-container text-center">
+                <h2 class="section-title justify-center"><i class="fas fa-hourglass-half text-indigo-500 mr-3"></i>Temporizador Pomodoro</h2>
+                <div id="pomodoroTimerDisplay" class="text-7xl sm:text-8xl font-bold text-indigo-600 my-8">25:00</div>
+                <div id="pomodoroStatus" class="text-xl text-gray-600 mb-8">Concentración</div>
+                <div class="flex flex-wrap justify-center gap-3 sm:gap-4">
+                    <button id="startPomodoroBtn" class="action-button success-button flex items-center"><i class="fas fa-play mr-2"></i>Iniciar</button>
+                    <button id="pausePomodoroBtn" class="action-button warning-button text-white flex items-center" disabled><i class="fas fa-pause mr-2"></i>Pausar</button>
+                    <button id="resetPomodoroBtn" class="action-button danger-button flex items-center"><i class="fas fa-undo mr-2"></i>Reiniciar</button>
+                    <button id="skipPomodoroBtn" class="action-button bg-blue-500 hover:bg-blue-600 focus:ring-blue-400 text-white flex items-center"><i class="fas fa-forward mr-2"></i>Saltar</button>
+                </div>
+                <p class="text-sm text-gray-500 mt-8 max-w-md mx-auto">Usa Pomodoro: 25 min de enfoque, 5 min de descanso. Tras 4 ciclos, 15 min de descanso largo. ¡Maximiza tu productividad!</p>
+            </section>
+
+            <section id="recursosSectionContainer" class="hidden section-container">
+                <h2 class="section-title"><i class="fas fa-lightbulb text-indigo-500 mr-3"></i>Recursos de Estudio y Enfoque</h2>
+                <div class="mb-8">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Técnicas de Estudio Efectivas</h3>
+                    <div id="studyTechniquesList" class="space-y-4">
+                        <p class="text-center text-gray-500 p-4">Cargando técnicas...</p>
+                    </div>
+                </div>
+                <div>
+                     <h3 class="text-xl font-semibold text-gray-700 mb-3">Consejo del Día</h3>
+                     <blockquote class="bg-indigo-50 p-4 rounded-lg border-l-4 border-indigo-500">
+                        <p id="dailyFocusTip" class="text-indigo-800 italic">"Concéntrate en una tarea a la vez. La multitarea es a menudo menos productiva."</p>
+                     </blockquote>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="modalEl" class="hidden fixed z-30 inset-0 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="sm:flex sm:items-start">
+                        <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 sm:mx-0 sm:h-10 sm:w-10">
+                            <i id="modalIconEl" class="fas fa-info-circle text-2xl text-indigo-600"></i>
+                        </div>
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900" id="modalTitleEl">Notificación</h3>
+                            <div class="mt-2">
+                                <p class="text-sm text-gray-500" id="modalMessageEl">Mensaje.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button type="button" id="modalCloseButtonEl" class="action-button primary-button mt-3 w-full sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                        Entendido
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirmationModalEl" class="hidden fixed z-40 inset-0 overflow-y-auto" aria-labelledby="confirmation-modal-title" role="dialog" aria-modal="true">
+         <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="sm:flex sm:items-start">
+                        <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                            <i class="fas fa-exclamation-triangle text-2xl text-red-600"></i>
+                        </div>
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900" id="confirmationModalTitleEl">Confirmación</h3>
+                            <div class="mt-2">
+                                <p class="text-sm text-gray-500" id="confirmationModalMessageEl">¿Estás seguro?</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button type="button" id="confirmationModalConfirmButtonEl" class="action-button danger-button w-full sm:ml-3 sm:w-auto sm:text-sm">
+                        Confirmar
+                    </button>
+                    <button type="button" id="confirmationModalCancelButtonEl" class="action-button bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 mt-3 w-full sm:mt-0 sm:w-auto sm:text-sm">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
